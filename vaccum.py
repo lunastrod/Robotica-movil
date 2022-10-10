@@ -1,12 +1,6 @@
-
-import turtle
 import random
-
-import turtle
-s = turtle.getscreen()
-t = turtle.Turtle()
-t.speed(0)
-#t.penup()
+from HAL import HAL
+from GUI import GUI
 
 class State:
     START_SPIRAL=0
@@ -25,10 +19,10 @@ while True:
     if(state==State.START_SPIRAL):
       state_variable=0#w
       state=State.SPIRAL
-      continue
+      
     if(state==State.SPIRAL):
-      t.fd(0.1+state_variable/1000)
-      t.left(1)
+      HAL.setV(0.1+state_variable/1000)
+      HAL.setW(1)
       state_variable+=1
       if(state_variable>=5000):
         state=State.START_SPIRAL
@@ -37,7 +31,8 @@ while True:
       state_variable=random.randrange(10, 50)
       state=State.BW
     if(state==State.BW):
-      t.backward(1)
+      HAL.setV(-1)
+      HAL.setW(0)
       state_variable-=1
       if(state_variable<=0):
         state=State.START_LEFT
@@ -45,8 +40,8 @@ while True:
       state_variable=random.randrange(10, 50)
       state=State.LEFT
     if(state==State.LEFT):
-      t.left(1)
+      HAL.setV(0)
+      HAL.setW(1)
       state_variable-=1
       if(state_variable<=0):
-        t.fd(10)
         state=State.START_BW
