@@ -2,7 +2,10 @@ import random
 from HAL import HAL
 from GUI import GUI
 
+dir(GUI)
+
 class State:
+    NOP=-1
     START_SPIRAL=0
     SPIRAL=1
     START_FD=2
@@ -11,11 +14,24 @@ class State:
     BW=5
     START_LEFT=6
     LEFT=7
+    
+def check_sensors():
+    laser=HAL.getLaserData()
+    LEFT_ANGLE=180-30
+    RIGHT_ANGLE=30
+    DISTANCE=300
+    left=min(laser[LEFT_ANGLE:])<DISTANCE
+    right=min(laser[:RIGHT_ANGLE])<DISTANCE
+    front=min(laser[RIGHT_ANGLE:LEFT_ANGLE])<DISTANCE
+    return left,front,right
+    
 
 state=State.START_BW
 state_variable=0
 
 while True:
+    print(check_sensors())
+    state=State.NOP
     if(state==State.START_SPIRAL):
       state_variable=0#w
       state=State.SPIRAL
