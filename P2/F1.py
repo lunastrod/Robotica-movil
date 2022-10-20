@@ -26,12 +26,15 @@ class pid_controller:
 
 
 def detect_line(frame):
-    mask = np.zeros_like(frame)# Create mask
+    # reduce resolution
+    resize_factor=0.1
+    frame_resized = cv.resize(frame, (0, 0), fx=1, fy=resize_factor)
+    mask = np.zeros_like(frame_resized)# Create mask
     # draw a line horizontal on the mask
-    height=int(frame.shape[0]/1.7)
-    cv.line(mask, (0, height), (frame.shape[1], height), (255, 255, 255), 4)
+    height=int(frame_resized.shape[0]/1.7)
+    cv.line(mask, (0, height), (frame_resized.shape[1], height), (255, 255, 255), 4)
     # apply the mask
-    masked = cv.bitwise_and(frame, mask)
+    masked = cv.bitwise_and(frame_resized, mask)
     # convert to hsv
     masked = cv.cvtColor(masked, cv.COLOR_BGR2HSV)
     # detect red color in hsv image
@@ -45,10 +48,9 @@ def detect_line(frame):
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
     except:
-        cX = 0
-        cY = 0
+        return 0, frame
     # draw the center of the shape on the image
-    cv.circle(frame, (cX, cY), 7, (255, 0, 255), -1)
+    cv.circle(frame, (cX, int(frame.shape[0]/1.7)), 7, (255, 0, 255), -1)
 
     #cv.imshow("frame", frame)
     #cv.imshow("mask", mask)
@@ -56,22 +58,20 @@ def detect_line(frame):
 
     #error is the distance from the center of the image to the center of the line
     #error is a percentage of the image width
-    error = (frame.shape[1]/2 - cX) / (frame.shape[1]/2)
+    error = (frame_resized.shape[1]/2 - cX) / (frame_resized.shape[1]/2)
     return error, frame
 
-v_robot=0
+v_robot=4
 w_robot=0
-pid_turn = pid_controller(0.5, 0.5, 0)
+pid_turn = pid_controller(3,0.05,6)
 
 while True:
-    time.sleep(0.1)
+    loop_time=time.time()
     HAL.setV(v_robot)
-
-    #w_robot should be limited to a maximum value
-    HAL.setW(min(0.1, max(-0.1, w_robot)))
-
-
     HAL.setW(w_robot)
+
+
+    #HAL.setW(w_robot)
 
     #frame = cv.imread(cv.samples.findFile("Screenshot-5.png"))
     
@@ -80,4 +80,6 @@ while True:
     w_robot=pid_turn.update(error)
     print(w_robot, error)
     GUI.showImage(frame)
-
+    
+    loop_time=time.time()-loop_time
+    print(loop_time)
