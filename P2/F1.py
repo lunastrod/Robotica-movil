@@ -25,20 +25,16 @@ class pid_controller:
         return self.Kp * self.error + self.Ki * self.integral + self.Kd * self.derivative
 
 
-def detect_line(frame):
-    # reduce resolution
-    resize_factor=0.1
-    frame_resized = cv.resize(frame, (0, 0), fx=1, fy=resize_factor)
-    mask = np.zeros_like(frame_resized)# Create mask
-    # draw a line horizontal on the mask
-    height=int(frame_resized.shape[0]/1.7)
-    cv.line(mask, (0, height), (frame_resized.shape[1], height), (255, 255, 255), 4)
-    # apply the mask
-    masked = cv.bitwise_and(frame_resized, mask)
+def detect_line(frame,height):
+    """
+    Detects the line in the frame and returns the x coordinate of the center of the line
+    """
+    #instead of masking, we can just crop the image
+    masked=frame[height:height+5,0:frame.shape[1]]
     # convert to hsv
     masked = cv.cvtColor(masked, cv.COLOR_BGR2HSV)
     # detect red color in hsv image
-    lower_red = np.array([-10, 120, 70])
+    lower_red = np.array([0, 120, 180])
     upper_red = np.array([10, 255, 255])
     masked = cv.inRange(masked, lower_red, upper_red)
     # detect center of the white pixels in masked image
@@ -46,40 +42,85 @@ def detect_line(frame):
     # calculate x,y coordinate of center
     try:
         cX = int(M["m10"] / M["m00"])
-        cY = int(M["m01"] / M["m00"])
+        #cY = int(M["m01"] / M["m00"])
     except:
-        return 0, frame
+        return 0
     # draw the center of the shape on the image
-    cv.circle(frame, (cX, int(frame.shape[0]/1.7)), 7, (255, 0, 255), -1)
+    cv.circle(frame, (cX, height), 3, (0, 0, 0), -1)
+    #draw a line at height
+    cv.line(frame,(0,height),(frame.shape[1],height),(0,0,0),1)
 
-    #cv.imshow("frame", frame)
-    #cv.imshow("mask", mask)
-    #cv.imshow("masked", masked)
+    return cX
 
-    #error is the distance from the center of the image to the center of the line
-    #error is a percentage of the image width
-    error = (frame_resized.shape[1]/2 - cX) / (frame_resized.shape[1]/2)
-    return error, frame
+def calculate_errors(frame):
+    """
+    Calculates the errors for the PID controller
+    """
+    height1=int(frame.shape[0]/1.6)
+    goal1=0.54*frame.shape[1]
+    height2=int(frame.shape[0]/1.9)
+    goal2=0.51*frame.shape[1]
+    # detect line
+    x1 = detect_line(frame,height1) #lower line
+    x2 = detect_line(frame,height2) #upper line
+    # draw vertical line at goal
+    cv.line(frame,(int(goal1),height1),(int(goal1),frame.shape[0]),(0,0,0),1)
+    cv.line(frame,(int(goal2),0),(int(goal2),height2),(0,0,0),1)
+    # calculate error, distance between center of line and goal
+    turn_error = (goal1 - x1) / (frame.shape[1]/2)
+    speed_error= abs(goal2-x2)/frame.shape[1]
+    return turn_error, speed_error
 
-v_robot=4
+v_robot=0
 w_robot=0
-pid_turn = pid_controller(3,0.05,6)
+pid_turn = pid_controller(3,0.01,6)
+pid_speed = pid_controller(100,0,100)
+line_found=0
 
-while True:
-    loop_time=time.time()
+"""
+MAX_STRAIGHT_SPEED=7 #if you want speed
+MAX_CURVE_SPEED=4 #if you want speed
+
+MAX_STRAIGHT_SPEED=6 #if you want reliability
+MAX_CURVE_SPEED=3 #if you want reliability
+"""
+MAX_STRAIGHT_SPEED=7
+CURVE_SPEED=4
+
+
+# simulator loop
+while True:    
+    # get frame from simulator
+    frame=HAL.getImage()
+    # calculate errors for PID controller
+    turn_error, speed_error=calculate_errors(frame)
+    w_robot=pid_turn.update(turn_error)
+    #instead of using the speed error, we can use a pid controller for the speed
+    if(line_found>10):
+        v_robot=min(MAX_STRAIGHT_SPEED,max(MAX_STRAIGHT_SPEED-pid_speed.update(speed_error),CURVE_SPEED))
+    else: #slow down if line is not found at the beginning of the run
+        if(turn_error<0.1 and turn_error>-0.1):
+            line_found+=1
+        v_robot=0.1
+    
+    # send commands to simulator
+    GUI.showImage(frame)
     HAL.setV(v_robot)
     HAL.setW(w_robot)
+    #this loop should execute as fast as possible, avoid prints, delays and optimize the code
 
-
-    #HAL.setW(w_robot)
-
-    #frame = cv.imread(cv.samples.findFile("Screenshot-5.png"))
-    
-    frame=HAL.getImage()
-    error, frame = detect_line(frame)
-    w_robot=pid_turn.update(error)
-    print(w_robot, error)
-    GUI.showImage(frame)
-    
-    loop_time=time.time()-loop_time
-    print(loop_time)
+"""
+#opencv tests
+#measure the time it takes to process one frame
+frame = cv.imread(cv.samples.findFile("Centered.png"))
+time_init=time.time()
+turn_error,speed_error = calculate_errors(frame)
+time_end=time.time()
+print("time:",time_end-time_init)
+cv.imshow("frame", frame)
+print("turn_error:",turn_error)
+print("speed_error:",speed_error)
+#wait for key press
+cv.waitKey(0)
+cv.destroyAllWindows()
+"""
