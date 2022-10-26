@@ -19,9 +19,14 @@ class pid_controller:
 
     def update(self, error):
         self.error = error
+        #if the error changes sign, reset the integral
+        #if self.error * self.previous_error < 0:
+        #    self.integral = 0
+        
         self.integral = self.integral + self.error
         self.derivative = self.error - self.previous_error
         self.previous_error = self.error
+
         return self.Kp * self.error + self.Ki * self.integral + self.Kd * self.derivative
 
 
@@ -56,24 +61,30 @@ def calculate_errors(frame):
     """
     Calculates the errors for the PID controller
     """
-    height1=int(frame.shape[0]/1.6)
-    goal1=0.54*frame.shape[1]
-    height2=int(frame.shape[0]/1.9)
-    goal2=0.51*frame.shape[1]
+    height1=int(frame.shape[0]/1.7)
+    goal_turn=0.54*frame.shape[1]
+
+    height2=int(frame.shape[0]/1.8)
+    
+    height3=int(frame.shape[0]/1.9)
+    goal_speed=0.51*frame.shape[1]
     # detect line
     x1 = detect_line(frame,height1) #lower line
-    x2 = detect_line(frame,height2) #upper line
+    x2 = detect_line(frame,height2) #middle line
+    x3 = detect_line(frame,height3) #upper line
     # draw vertical line at goal
-    cv.line(frame,(int(goal1),height1),(int(goal1),frame.shape[0]),(0,0,0),1)
-    cv.line(frame,(int(goal2),0),(int(goal2),height2),(0,0,0),1)
+    cv.line(frame,(int(goal_turn),height1),(int(goal_turn),frame.shape[0]),(0,0,0),1)
+    cv.line(frame,(int(goal_speed),0),(int(goal_speed),height2),(0,0,0),1)
     # calculate error, distance between center of line and goal
-    turn_error = (goal1 - x1) / (frame.shape[1]/2)
-    speed_error= abs(goal2-x2)/frame.shape[1]
-    return turn_error, speed_error
+    turn_error = (goal_turn - x1) / (frame.shape[1]/2)
+    speed_error= abs(goal_speed-x2)/frame.shape[1]
+    #detect if x1 x2 and x3 are alineated
+    is_curve=abs((x1-x2)-(x2-x3))>5
+    return turn_error, speed_error, is_curve
 
 v_robot=0
 w_robot=0
-pid_turn = pid_controller(3,0.02,6)
+pid_turn = pid_controller(1.7,0.07,7)
 pid_speed = pid_controller(100,0,100)
 line_found=0
 
@@ -84,8 +95,32 @@ MAX_CURVE_SPEED=4 #if you want speed
 MAX_STRAIGHT_SPEED=6 #if you want reliability
 MAX_CURVE_SPEED=3 #if you want reliability
 """
-MAX_STRAIGHT_SPEED=7
-CURVE_SPEED=4
+MAX_STRAIGHT_SPEED=12
+CURVE_SPEED=7.5
+
+HAL.setV(0)
+HAL.setW(0)
+time.sleep(2)
+
+
+# simulator loop
+while True:    
+    # get frame from simulator
+    frame=HAL.getImage()
+    # calculate errors for PID controller
+    turn_error, speed_error, is_curve=calculate_errors(frame)
+    w_robot=pid_turn.update(turn_error)
+    #instead of using the speed error, we can use a pid controller for the speed
+    if(is_curve):
+        v_robot=CURVE_SPEED
+    else:
+        v_robot=MAX_STRAIGHT_SPEED
+    #v_robot=min(MAX_STRAIGHT_SPEED,max(MAX_STRAIGHT_SPEED-pid_speed.update(speed_error),CURVE_SPEED))
+    # send commands to simulator
+    GUI.showImage(frame)
+    HAL.setV(v_robot)
+    HAL.setW(w_robot)
+    #this loop should execute as fast as possible, avoid prints, delays and optimize the code
 
 """
 #opencv tests
@@ -102,19 +137,3 @@ print("speed_error:",speed_error)
 cv.waitKey(0)
 cv.destroyAllWindows()
 """
-
-# simulator loop
-while True:    
-    # get frame from simulator
-    frame=HAL.getImage()
-    # calculate errors for PID controller
-    turn_error, speed_error=calculate_errors(frame)
-    w_robot=pid_turn.update(turn_error)
-    # instead of using the speed error, we can use a pid controller for the speed
-    v_robot=min(MAX_STRAIGHT_SPEED,max(MAX_STRAIGHT_SPEED-pid_speed.update(speed_error),CURVE_SPEED))
-    # send commands to simulator
-    GUI.showImage(frame)
-    HAL.setV(v_robot)
-    HAL.setW(w_robot)
-    # this loop should execute as fast as possible, avoid prints, delays and optimize the code
-
