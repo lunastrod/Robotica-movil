@@ -96,13 +96,7 @@ while True:
     turn_error, speed_error=calculate_errors(frame)
     w_robot=pid_turn.update(turn_error)
     #instead of using the speed error, we can use a pid controller for the speed
-    if(line_found>10):
-        v_robot=min(MAX_STRAIGHT_SPEED,max(MAX_STRAIGHT_SPEED-pid_speed.update(speed_error),CURVE_SPEED))
-    else: #slow down if line is not found at the beginning of the run
-        if(turn_error<0.1 and turn_error>-0.1):
-            line_found+=1
-        v_robot=0.1
-    
+    v_robot=min(MAX_STRAIGHT_SPEED,max(MAX_STRAIGHT_SPEED-pid_speed.update(speed_error),CURVE_SPEED))    
     # send commands to simulator
     GUI.showImage(frame)
     HAL.setV(v_robot)
