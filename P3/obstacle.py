@@ -32,10 +32,13 @@ def VFF_controller(laser, goal):
     Goal generates an attractive force in the robot.
     The sum of all forces is the control signal.
     """
-    
-    repulsive_k = -0.5
-    attractive_k = 1
-    ignore_dist = 0.5#m
+    #PARAMETERS
+    obstacle_k = 0.1
+    goal_k = 7
+    ignore_dist = 3#m
+    max_goal_force = 20
+
+
     ignore_dist*=ignore_dist
     obstacle_force = [0, 0]
     goal_force = [0, 0]
@@ -43,10 +46,16 @@ def VFF_controller(laser, goal):
         #if the distance to the obstacle is more than ignore_dist, then the force is 0
         if(abs(laser[i][0])+abs(laser[i][1])>ignore_dist):
             continue
-        obstacle_force[0]=obstacle_force[0]+repulsive_k*laser[i][0]
-        obstacle_force[1]=obstacle_force[1]+repulsive_k*laser[i][1]
-    goal_force[0]=goal_force[0]+attractive_k*goal[0]
-    goal_force[1]=goal_force[1]+attractive_k*goal[1]
+        #the force is inversely proportional to the square of the distance to the obstacle
+        #calculate the distance to the obstacle
+        sqr_dist=laser[i][0]*laser[i][0]+laser[i][1]*laser[i][1]
+        #update the obstacle force
+        obstacle_force[0]=obstacle_force[0]+laser[i][0]/sqr_dist*obstacle_k
+        obstacle_force[1]=obstacle_force[1]+laser[i][1]/sqr_dist*obstacle_k
+
+    #update the goal force
+    goal_force[0]=min(max_goal_force,goal_force[0]+goal[0]*goal_k)
+    goal_force[1]=min(max_goal_force,goal_force[1]+goal[1]*goal_k)
     return obstacle_force,goal_force,tuple(map(sum, zip(obstacle_force, goal_force)))
 
 def force_to_vw(force):
@@ -54,7 +63,7 @@ def force_to_vw(force):
     This function converts the control signal (force) into the desired linear and angular velocities of the robot.
     """
     angle=math.atan2(force[1],force[0])
-    maxv=0.5
+    maxv=2
     maxw=math.pi/2
     v=math.cos(angle)*maxv
     w=math.sin(angle)*maxw
@@ -81,18 +90,35 @@ def absolute2relative (x_abs, y_abs, robotx, roboty, robott):
 
     return x_rel, y_rel
 
+def is_close(goal):
+    """
+    This function checks if the robot is close enough to the goal.
+    """
+    threshold = 1
+    if(abs(goal[0]) < threshold and abs(goal[1]) < threshold):
+        return True
+    return False
+
 while True:
     # Get the current position of the robot
     robotx=HAL.getPose3d().x
     roboty=HAL.getPose3d().y
     robotyaw=HAL.getPose3d().yaw
     # Get the next waypoint
-    target = [1.0,1.0]#global coords
+    currentTarget = GUI.map.getNextTarget()
+    #print(dir(currentTarget))
+    target=[currentTarget.getPose().x,currentTarget.getPose().y]
+    #target=[0,0]
     # Convert the waypoint to relative coordinates
     local_target = absolute2relative(target[0], target[1], robotx, roboty, robotyaw)
+    if(is_close(local_target)):
+        currentTarget.setReached(True)
+        continue
+        
+    print("local target: ", local_target)
     # Parse the laser data
     laser=vectorize_laser(parse_laser_data(HAL.getLaserData()))
-    print(laser)
+    #print(laser)
     # Calculate the control signal
     obstacle_force,goal_force,force=VFF_controller(laser,local_target)
     print("obstacle_force: ",obstacle_force)
@@ -103,8 +129,8 @@ while True:
     print("w: ", robotw)
     print()
     # Send the velocity to the robot
-    #HAL.setW(robotw)
-    #HAL.setV(robotv)
+    HAL.setW(robotw)
+    HAL.setV(robotv)
     # Update the GUI
     GUI.showForces(obstacle_force, goal_force, force)
     # show image
