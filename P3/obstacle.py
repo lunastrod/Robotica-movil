@@ -99,6 +99,7 @@ def is_close(goal):
         return True
     return False
 
+
 while True:
     # Get the current position of the robot
     robotx=HAL.getPose3d().x
