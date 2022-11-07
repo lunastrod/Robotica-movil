@@ -33,10 +33,11 @@ def VFF_controller(laser, goal):
     The sum of all forces is the control signal.
     """
     #PARAMETERS
-    obstacle_k = 0.1
-    goal_k = 7
-    ignore_dist = 3#m
-    max_goal_force = 20
+    obstacle_k = 0.01
+    goal_k = 4
+    ignore_dist = 10#m
+    max_goal_force = 5
+    max_obstacle_force = 45090000000000
 
 
     ignore_dist*=ignore_dist
@@ -50,8 +51,11 @@ def VFF_controller(laser, goal):
         #calculate the distance to the obstacle
         sqr_dist=laser[i][0]*laser[i][0]+laser[i][1]*laser[i][1]
         #update the obstacle force
-        obstacle_force[0]=obstacle_force[0]+laser[i][0]/sqr_dist*obstacle_k
-        obstacle_force[1]=obstacle_force[1]+laser[i][1]/sqr_dist*obstacle_k
+        obstacle_force[0]=obstacle_force[0]-laser[i][0]/sqr_dist*obstacle_k
+        obstacle_force[1]=obstacle_force[1]-laser[i][1]/sqr_dist*obstacle_k
+
+    obstacle_force[0]=min(max(obstacle_force[0],-max_obstacle_force),max_obstacle_force)
+    obstacle_force[1]=min(max(obstacle_force[1],-max_obstacle_force),max_obstacle_force)
 
     #update the goal force
     goal_force[0]=min(max_goal_force,goal_force[0]+goal[0]*goal_k)
@@ -62,12 +66,22 @@ def force_to_vw(force):
     """
     This function converts the control signal (force) into the desired linear and angular velocities of the robot.
     """
-    angle=math.atan2(force[1],force[0])
-    maxv=2
+    maxv=0
     maxw=math.pi/2
-    v=math.cos(angle)*maxv
-    w=math.sin(angle)*maxw
+
+    angle=math.atan2(force[1],force[0])
+    #print("prev angle",math.degrees(angle))
+    angle=(angle-math.pi/2)
+    if(angle<-math.pi):
+        angle=angle+2*math.pi
+    print("angle",math.degrees(angle),angle)
+
+    #v=math.cos(angle)*maxv
+    v=max(0,-1.62*angle**2+1)*maxv
+    #w=math.sin(angle)*maxw
+    w=max(-maxw,min(maxw,3.2*angle**3))
     return v, w
+
 
 def absolute2relative (x_abs, y_abs, robotx, roboty, robott):
     """
@@ -114,7 +128,6 @@ while True:
     local_target = absolute2relative(target[0], target[1], robotx, roboty, robotyaw)
     if(is_close(local_target)):
         currentTarget.setReached(True)
-        continue
         
     print("local target: ", local_target)
     # Parse the laser data
@@ -138,4 +151,6 @@ while True:
     GUI.showImage(HAL.getImage())
     # show target
     GUI.showLocalTarget(target)
+    
+    
     
