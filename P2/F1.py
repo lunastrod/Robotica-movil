@@ -114,16 +114,8 @@ while True:
     w_robot=pid_turn.update(turn_error)
 
     #instead of using the speed error, we can use a pid controller for the speed
-    if(is_curve<7):
-        print("straight")
-        v_robot=MAX_STRAIGHT_SPEED
-    elif (is_curve<15):
-        print("fast_curve")
-        v_robot=FAST_CURVE_SPEED
-    else:
-        print("curve")
-        v_robot=CURVE_SPEED
-        
+    v_robot=min(MAX_STRAIGHT_SPEED,max(MAX_STRAIGHT_SPEED-pid_speed.update(speed_error),CURVE_SPEED))    
+    # send commands to simulator
     GUI.showImage(frame)
     HAL.setV(v_robot)
     HAL.setW(w_robot)
