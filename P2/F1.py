@@ -78,15 +78,15 @@ def calculate_errors(frame):
     #cv.line(frame,(int(goal_speed),0),(int(goal_speed),height2),(0,0,0),1)
     # calculate error, distance between center of line and goal
     turn_error = (goal_turn - x1) / (frame.shape[1]/2)
-    #speed_error= abs(goal_speed-x2)/frame.shape[1]
+    speed_error= abs(goal_speed-x2)/frame.shape[1]
     #detect if x1 x2 and x3 are alineated
     is_curve=abs((x1-x2)-(x2-x3))+abs(turn_error*3)
-    return turn_error, is_curve
+    return turn_error, is_curve, speed_error
 
 v_robot=0
 w_robot=0
-pid_turn = pid_controller(1.5,0,7)
-#pid_turn = pid_controller(1.5,0,0)
+pid_turn = pid_controller(3,0.01,6)
+pid_speed = pid_controller(100,0,100)
 
 """
 MAX_STRAIGHT_SPEED=7 #if you want speed
@@ -96,8 +96,8 @@ MAX_STRAIGHT_SPEED=6 #if you want reliability
 MAX_CURVE_SPEED=3 #if you want reliability
 12,8,3
 """
-MAX_STRAIGHT_SPEED=11
-FAST_CURVE_SPEED=8
+MAX_STRAIGHT_SPEED=6
+FAST_CURVE_SPEED=4
 CURVE_SPEED=3
 
 
@@ -110,7 +110,7 @@ while True:
     # get frame from simulator
     frame=HAL.getImage()
     # calculate errors for PID controller
-    turn_error, is_curve=calculate_errors(frame)
+    turn_error, is_curve, speed_error=calculate_errors(frame)
     w_robot=pid_turn.update(turn_error)
 
     #instead of using the speed error, we can use a pid controller for the speed
